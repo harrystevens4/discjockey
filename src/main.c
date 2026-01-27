@@ -198,11 +198,15 @@ int main(int argc, char **argv){
 				//bounds check
 				if (queue.selected_song_index >= queue.song_count-1) break;
 				queue.selected_song_index++;
+				//record selection has changed
+				gettimeofday(&queue.time_when_song_selected,NULL);
 				break;
 				case KEY_UP:
 				//bounds check
 				if (queue.selected_song_index <= 0) break;
 				queue.selected_song_index--;
+				//record selection has changed
+				gettimeofday(&queue.time_when_song_selected,NULL);
 				break;
 				//====== quit ======
 				case 'q':
@@ -211,6 +215,8 @@ int main(int argc, char **argv){
 				//====== back to current song ======
 				case 'b':
 				queue.selected_song_index = queue.current_song_index;
+				//record selection has changed
+				gettimeofday(&queue.time_when_song_selected,NULL);
 				break;
 				//====== start song ======
 				case '\n':
@@ -239,9 +245,13 @@ int main(int argc, char **argv){
 				//====== page up and down ======
 				case KEY_NPAGE:
 				queue.selected_song_index = MIN(queue.song_count-1,queue.selected_song_index+LINES-2);
+				//record selection has changed
+				gettimeofday(&queue.time_when_song_selected,NULL);
 				break;
 				case KEY_PPAGE:
 				queue.selected_song_index = MAX(0,queue.selected_song_index-LINES+2);
+				//record selection has changed
+				gettimeofday(&queue.time_when_song_selected,NULL);
 				break;
 				//====== toggle repeat ======
 				case 'r':
@@ -306,6 +316,14 @@ void queue_window_update(WINDOW *window,struct music_queue *queue){
 	//but then when it gets to the end it goes to the bottom
 	//im not realy sure how this one liner works but i just made it from experimentation
 	int highlight_top_offset = (queue->song_count-queue->selected_song_index-(height%2) > (height-2)/2) ? MIN(queue->selected_song_index,((height-2)/2)) : ((height-2))-(queue->song_count-queue->selected_song_index);
+	//====== name overflow scrolling ======
+	struct timeval time_now;
+	gettimeofday(&time_now,NULL);
+	//time elapsed since the currently selected song was selected
+	struct timeval time_elapsed_since_selected;
+	timersub(&time_now,&queue->time_when_song_selected,&time_elapsed_since_selected);
+	//convert to milliseconds
+	uint64_t elapsed_selection_time_ms = time_elapsed_since_selected.tv_sec*1000 + time_elapsed_since_selected.tv_usec/1000;
 	//====== print the queue ======
 	int y = 0;
 	int cursor_y = 0;
@@ -313,8 +331,30 @@ void queue_window_update(WINDOW *window,struct music_queue *queue){
 		if (y >= height-2) break;
 		//wow isnt this function name so easy to understand
 		wchar_t *wch_str = str_to_wchar(queue->songs[i].name);
-		mvwaddnwstr(window,y+1,1,wch_str,wch_get_count_for_width(wch_str,width-2));
+		//=== scroll ===
+		//scroll only the selected song
+		long int text_scroll_offset = 0;
+		if (i == queue->selected_song_index){
+			//how many characters to scroll at max
+			//so like if the window has room for 5 chars and the name is 6 it would be 1
+			long int max_scroll = MAX(width-2,(long)wcslen(wch_str)) - (width-2);
+			if (max_scroll > 0){
+				//scroll 1 char every 500ms
+				const int scroll_interval = 500;
+				//wait 5 intervals before scrolling and 5 intervals once it reaches the end
+				const int scroll_pause_interval = 5;
+				text_scroll_offset = 
+					(elapsed_selection_time_ms/scroll_interval) %
+					(max_scroll + (scroll_pause_interval*2)); //wait at the start and end
+				//dont scroll during the fisrst and last scroll_pause_intervals
+				text_scroll_offset = MAX(text_scroll_offset-scroll_pause_interval,0);
+				text_scroll_offset = MIN(text_scroll_offset,max_scroll);
+			}
+		}
+		//=== print name ===
+		mvwaddnwstr(window,y+1,1,wch_str+text_scroll_offset,wch_get_count_for_width(wch_str+text_scroll_offset,width-2));
 		if (i == queue->selected_song_index) mvwchgat(window,y+1,1,width-2,A_UNDERLINE | A_DIM,PAIR_DEFAULT,NULL);
+		//=== highlight selected song ===
 		if (i == queue->selected_song_index) cursor_y = y;
 		if (i == queue->current_song_index) mvwchgat(window,y+1,1,width-2,A_REVERSE,PAIR_DEFAULT,NULL);
 		y++;

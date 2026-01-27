@@ -22,6 +22,7 @@ struct music_queue {
 	int selected_song_index; //where the cursor is
 	enum playback_status playback_status;
 	int repeat; //0 for off 1 for one and 2 for all
+	struct timeval time_when_song_selected; //the time when the song was first selected
 };
 
 int queue_load(char **files, int file_count, struct music_queue *queue);
