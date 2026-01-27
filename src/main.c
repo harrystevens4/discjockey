@@ -133,6 +133,10 @@ int main(int argc, char **argv){
 	int count = queue_load(argv+optind,argc-optind,&queue);
 	printf("%d files loaded\n",count);
 	if (shuffle) queue_shuffle(&queue);
+	if (queue.song_count == 0){
+		printf("No songs in queue.\n");
+		return 1;
+	}
 	printf("====== queue ======\n");
 	for (int i = 0; i < queue.song_count; i++){
 		printf("%s\n",queue.songs[i].name);
