@@ -134,6 +134,12 @@ int queue_next(struct music_queue *queue){
 	queue->current_song_index++;
 	return Mix_PlayMusic(queue->songs[queue->current_song_index].song,0);
 }
+int queue_prev(struct music_queue *queue){
+	if (queue->current_song_index == 0) return 1;
+	queue->playback_status = PLAYBACK_PLAYING;
+	queue->current_song_index--;
+	return Mix_PlayMusic(queue->songs[queue->current_song_index].song,0);
+}
 int queue_repeat_song(struct music_queue *queue){
 	queue->playback_status = PLAYBACK_PLAYING;
 	return Mix_PlayMusic(queue->songs[queue->current_song_index].song,0);
