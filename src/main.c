@@ -75,6 +75,8 @@ void print_help(char *name){
 	printf("	g           : to start of list\n");
 	printf("	G           : to end of list\n");
 	printf("	r           : toggles repeat off, one and all\n");
+	printf("	a           : play previous song\n");
+	printf("	d           : play next song");
 }
 int main(int argc, char **argv){
 	srandom(time(NULL));
@@ -241,6 +243,13 @@ int main(int argc, char **argv){
 				break;
 				case 'G':
 				queue.selected_song_index = queue.song_count-1;
+				break;
+				//====== a and d to skip to next or previous song ======
+				case 'd':
+				queue_next(&queue);
+				break;
+				case 'a':
+				queue_prev(&queue);
 				break;
 				//====== page up and down ======
 				case KEY_NPAGE:
