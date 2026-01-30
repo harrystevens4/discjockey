@@ -76,7 +76,7 @@ void print_help(char *name){
 	printf("	G           : to end of list\n");
 	printf("	r           : toggles repeat off, one and all\n");
 	printf("	a           : play previous song\n");
-	printf("	d           : play next song");
+	printf("	d           : play next song\n");
 }
 int main(int argc, char **argv){
 	srandom(time(NULL));
