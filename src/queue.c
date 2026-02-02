@@ -38,9 +38,6 @@ int scandir_filter(const struct dirent *ent){
 	return strcmp(ent->d_name,".") && strcmp(ent->d_name,"..");
 }
 int queue_load(char **files, int file_count, struct music_queue *queue){
-	//initialise the struct
-	memset(queue,0,sizeof(struct music_queue));
-	gettimeofday(&queue->time_when_song_selected,NULL);
 	//initialise the queue
 	for (int i = 0; i < file_count; i++){
 		printf("loading %s...\n",files[i]);

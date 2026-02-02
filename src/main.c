@@ -85,6 +85,7 @@ int main(int argc, char **argv){
 	//====== memset a queue ======
 	struct music_queue queue;
 	memset(&queue,0,sizeof(struct music_queue));
+	gettimeofday(&queue.time_when_song_selected,NULL);
 	//====== process arguments ======
 	int option_index = 0;
 	struct option long_opts[] = {
