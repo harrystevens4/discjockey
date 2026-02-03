@@ -37,6 +37,11 @@
 
 volatile sig_atomic_t sigwinch_occured = 0;
 
+//scroll 1 char every 500ms
+const int scroll_interval = 500;
+//wait 5 intervals before scrolling and 5 intervals once it reaches the end
+const int scroll_pause_interval = 5;
+
 #define sdlerror(str) fprintf(stderr,"%s: %s\n",str,SDL_GetError())
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
@@ -349,10 +354,6 @@ void queue_window_update(WINDOW *window,struct music_queue *queue){
 			//so like if the window has room for 5 chars and the name is 6 it would be 1
 			long int max_scroll = MAX(width-2,(long)wcslen(wch_str)) - (width-2);
 			if (max_scroll > 0){
-				//scroll 1 char every 500ms
-				const int scroll_interval = 500;
-				//wait 5 intervals before scrolling and 5 intervals once it reaches the end
-				const int scroll_pause_interval = 5;
 				text_scroll_offset = 
 					(elapsed_selection_time_ms/scroll_interval) %
 					(max_scroll + (scroll_pause_interval*2)); //wait at the start and end
@@ -376,7 +377,7 @@ void queue_window_update(WINDOW *window,struct music_queue *queue){
 wchar_t *str_to_wchar(const char *str){
 	static wchar_t buffer[4096]; //probs big enough
 	//at least the naming scheme here is sensible
-	size_t count = mbstowcs(buffer,str,4096);
+	long int count = mbstowcs(buffer,str,4096);
 	if (count == -1) wcscpy(buffer,L"Error");
 	return buffer;
 }
@@ -388,6 +389,7 @@ void playback_status_window_update(WINDOW *window,struct music_queue *queue){
 	box_set(window,0,0);
 	//window "title"
 	mvwaddnwstr(window,0,1,L"┤playback status├",width-2);
+	//====== playback information ======
 	//render a spinner
 	wchar_t spinner_state;
 	if (queue->playback_status == PLAYBACK_PLAYING) spinner_state = L"-\\|/"[time(NULL)%4];
@@ -404,13 +406,43 @@ void playback_status_window_update(WINDOW *window,struct music_queue *queue){
 	//print repeat status
 	char *repeat_strings[] = {"none","one","all"};
 	if (width >= 37) mvwprintw(window,1,25,"repeat: %s",repeat_strings[queue->repeat]);
-	//print artist and song name
+	//====== title, song and artist ======
 	wchar_t *title_str = wcsdup(str_to_wchar(Mix_GetMusicTitleTag(queue->songs[queue->current_song_index].song)));
 	wchar_t *artist_str = wcsdup(str_to_wchar(Mix_GetMusicArtistTag(queue->songs[queue->current_song_index].song)));
 	wchar_t *path_str = wcsdup(str_to_wchar(queue->songs[queue->current_song_index].path));
-	if (height >= 4) mvwaddnwstr(window,2,1,path_str,wch_get_count_for_width(path_str,width-2));
-	if (height >= 5) mvwaddnwstr(window,3,1,title_str,wch_get_count_for_width(title_str,width-2));
-	if (height >= 6) mvwaddnwstr(window,4,1,artist_str,wch_get_count_for_width(artist_str,width-2));
+	//scrolling offset
+	int seconds_elapsed_ms = Mix_GetMusicPosition(queue->songs[queue->current_song_index].song)*1000;
+	long int max_title_scroll = MAX(width-2,(long)wcslen(title_str)) - (width-2);
+	long int max_artist_scroll = MAX(width-2,(long)wcslen(artist_str)) - (width-2);
+	long int max_path_scroll = MAX(width-2,(long)wcslen(path_str)) - (width-2);
+	long int title_scroll_offset = 0, artist_scroll_offset = 0, path_scroll_offset = 0;
+	if (max_title_scroll > 0){
+		title_scroll_offset = 
+			(seconds_elapsed_ms/scroll_interval) %
+			(max_title_scroll + (scroll_pause_interval*2)); //wait at the start and end
+		//dont scroll during the fisrst and last scroll_pause_intervals
+		title_scroll_offset = MAX(title_scroll_offset-scroll_pause_interval,0);
+		title_scroll_offset = MIN(title_scroll_offset,max_title_scroll);
+	}
+	if (max_artist_scroll > 0){
+		artist_scroll_offset = 
+			(seconds_elapsed_ms/scroll_interval) %
+			(max_artist_scroll + (scroll_pause_interval*2)); //wait at the start and end
+		//dont scroll during the fisrst and last scroll_pause_intervals
+		artist_scroll_offset = MAX(artist_scroll_offset-scroll_pause_interval,0);
+		artist_scroll_offset = MIN(artist_scroll_offset,max_artist_scroll);
+	}
+	if (max_path_scroll > 0){
+		path_scroll_offset = 
+			(seconds_elapsed_ms/scroll_interval) %
+			(max_path_scroll + (scroll_pause_interval*2)); //wait at the start and end
+		//dont scroll during the fisrst and last scroll_pause_intervals
+		path_scroll_offset = MAX(path_scroll_offset-scroll_pause_interval,0);
+		path_scroll_offset = MIN(path_scroll_offset,max_path_scroll);
+	}
+	if (height >= 4) mvwaddnwstr(window,2,1,path_str+path_scroll_offset,wch_get_count_for_width(path_str+path_scroll_offset,width-2));
+	if (height >= 5) mvwaddnwstr(window,3,1,title_str+title_scroll_offset,wch_get_count_for_width(title_str+title_scroll_offset,width-2));
+	if (height >= 6) mvwaddnwstr(window,4,1,artist_str+artist_scroll_offset,wch_get_count_for_width(artist_str+artist_scroll_offset,width-2));
 	free(title_str);
 	free(artist_str);
 	free(path_str);
@@ -418,11 +450,11 @@ void playback_status_window_update(WINDOW *window,struct music_queue *queue){
 	wrefresh(window);
 }
 void sigwinch_handler(int sig){
-	sigwinch_occured = 1;
+	if (sig == SIGWINCH) sigwinch_occured = 1;
 }
 int wch_get_count_for_width(wchar_t *str,int target_width){
 	int width = 0;
-	for (int i = 0; i < wcslen(str); i++){
+	for (int i = 0; i < (int)wcslen(str); i++){
 		width += wcwidth(str[i]);
 		if (width > target_width) return i;
 	}
